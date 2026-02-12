@@ -32,7 +32,7 @@ from peft import (  # noqa: E402
     prepare_model_for_int8_training,
     set_peft_model_state_dict,
 )
-from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, AutoModel  # noqa: F402
+from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, AutoModel, BitsAndBytesConfig  # noqa: F402
 
 
 def train(
@@ -140,9 +140,12 @@ def train(
         os.environ["WANDB_LOG_MODEL"] = wandb_log_model
 
     if load_8bit:
+        quant_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+        )
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
-            load_in_8bit=load_8bit,
+            quantization_config=quant_config,
             torch_dtype=torch.float16,
             device_map=device_map,
             trust_remote_code=True,
@@ -150,7 +153,6 @@ def train(
     else:
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
-            load_in_8bit=False,
             torch_dtype=torch.float16,
             device_map={"": int(os.environ.get("LOCAL_RANK") or 0)},
             trust_remote_code=True,
