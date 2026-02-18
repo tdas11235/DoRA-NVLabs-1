@@ -211,7 +211,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', choices=["boolq", "piqa", "social_i_qa", "hellaswag", "winogrande", "ARC-Challenge", "ARC-Easy", "openbookqa"],
                         required=True)
-    parser.add_argument('--model', choices=['LLaMA-7B', "LLaMA-13B",'LLaMA2-7B','LLaMA3-8B'], required=True)
+    parser.add_argument('--model', choices=['LLaMA-7B', "LLaMA-13B",'LLaMA2-7B','LLaMA3-8B', 'llama-68m'], required=True)
     parser.add_argument('--adapter', choices=['LoRA', 'AdapterP', 'AdapterH', 'Parallel', 'DoRA'],
                         required=True)
     parser.add_argument('--base_model', required=True)
@@ -245,7 +245,7 @@ def load_model(args) -> tuple:
         else:
             tokenizer = LlamaTokenizer.from_pretrained(base_model)
     else:
-        tokenizer = AutoTokenizer.from_pretrained(base_model)
+        tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
     tokenizer.padding_side = "left"
     tokenizer.pad_token_id = (
         0  # unk. we want this to be different from the eos token
