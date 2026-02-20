@@ -212,7 +212,7 @@ def parse_args():
     parser.add_argument('--dataset', choices=["boolq", "piqa", "social_i_qa", "hellaswag", "winogrande", "ARC-Challenge", "ARC-Easy", "openbookqa"],
                         required=True)
     parser.add_argument('--model', choices=['LLaMA-7B', "LLaMA-13B",'LLaMA2-7B','LLaMA3-8B', 'llama-68m', 'phi-3-4k-instruct'], required=True)
-    parser.add_argument('--adapter', choices=['LoRA', 'AdapterP', 'AdapterH', 'Parallel', 'DoRA'],
+    parser.add_argument('--adapter', choices=['None', 'LoRA', 'AdapterP', 'AdapterH', 'Parallel', 'DoRA'],
                         required=True)
     parser.add_argument('--base_model', required=True)
     parser.add_argument('--lora_weights', required=True)
@@ -258,33 +258,36 @@ def load_model(args) -> tuple:
             device_map="auto",
             trust_remote_code=True,
         ) # fix zwq
-        model = PeftModel.from_pretrained(
-            model,
-            lora_weights,
-            torch_dtype=torch.float16,
-            device_map={"":0}
-        )
+        if args.adapter != 'None':
+            model = PeftModel.from_pretrained(
+                model,
+                lora_weights,
+                torch_dtype=torch.float16,
+                device_map={"":0}
+            )
     elif device == "mps":
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
             device_map={"": device},
             torch_dtype=torch.float16,
         )
-        model = PeftModel.from_pretrained(
-            model,
-            lora_weights,
-            device_map={"": device},
-            torch_dtype=torch.float16,
-        )
+        if args.adapter != 'None':
+            model = PeftModel.from_pretrained(
+                model,
+                lora_weights,
+                device_map={"": device},
+                torch_dtype=torch.float16,
+            )
     else:
         model = AutoModelForCausalLM.from_pretrained(
             base_model, device_map={"": device}, low_cpu_mem_usage=True
         )
-        model = PeftModel.from_pretrained(
-            model,
-            lora_weights,
-            device_map={"": device},
-        )
+        if args.adapter != 'None':
+            model = PeftModel.from_pretrained(
+                model,
+                lora_weights,
+                device_map={"": device},
+            )
 
         # unwind broken decapoda-research config
         model.config.pad_token_id = tokenizer.pad_token_id = 0  # unk
