@@ -25,6 +25,7 @@ sys.path.append(os.path.join(os.getcwd(), "peft/src/"))
 from peft import (  # noqa: E402
     LoraConfig,
     DoraConfig,
+    FrobDoraConfig,
     BottleneckConfig,
     PrefixTuningConfig,
     get_peft_model,
@@ -67,6 +68,8 @@ def train(
         target_modules: List[str] = None,
         # Dora hyperparams
         dora_simple: bool = True,
+        # FrobDora
+        frobdora_simple: bool = True,
         Wdecompose_target_modules: List[str] = None,
         scaling: Union[float, str] = 1.0,
         # prefix tuning hyperparams
@@ -98,7 +101,8 @@ def train(
         f"lora_dropout: {lora_dropout}\n"
         f"lora_target_modules: {lora_target_modules}\n"
         f"Wdecompose_target_modules: {Wdecompose_target_modules}\n"
-        f"dora_simple: {dora_simple}"
+        f"dora_simple: {dora_simple}\n"
+        f"frobdora_simple: {frobdora_simple}\n"
         f"bottleneck_size: {bottleneck_size}\n"
         f"non_linearity: {non_linearity}\n"
         f"adapter_dropout: {adapter_dropout}\n"
@@ -237,6 +241,18 @@ def train(
             bias="none",
             task_type="CAUSAL_LM",
             dora_simple=dora_simple,
+            Wdecompose_target_modules=Wdecompose_target_modules
+        )
+    elif adapter_name == "frobdora":
+        print("FrobDoRA init")
+        config = FrobDoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            target_modules=target_modules,
+            lora_dropout=lora_dropout,
+            bias="none",
+            task_type="CAUSAL_LM",
+            frobdora_simple=frobdora_simple,
             Wdecompose_target_modules=Wdecompose_target_modules
         )
     elif adapter_name == "bottleneck":

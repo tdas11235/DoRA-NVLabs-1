@@ -31,6 +31,7 @@ class PeftType(str, enum.Enum):
     LORA = "LORA"
     BOTTLENECK = "BOTTLENECK"
     DORA = "DORA"
+    FROBDORA = "FROBDORA"
 
 
 

@@ -29,7 +29,7 @@ from .peft_model import (
     PeftModelForSequenceClassification,
     PeftModelForTokenClassification,
 )
-from .tuners import LoraConfig, PrefixTuningConfig, PromptEncoderConfig, PromptTuningConfig, BottleneckConfig, DoraConfig
+from .tuners import LoraConfig, PrefixTuningConfig, PromptEncoderConfig, PromptTuningConfig, BottleneckConfig, DoraConfig, FrobDoraConfig
 from .utils import PromptLearningConfig
 
 
@@ -46,7 +46,8 @@ PEFT_TYPE_TO_CONFIG_MAPPING = {
     "P_TUNING": PromptEncoderConfig,
     "LORA": LoraConfig,
     "BOTTLENECK": BottleneckConfig,
-    "DORA": DoraConfig
+    "DORA": DoraConfig,
+    "FROBDORA": FrobDoraConfig
 }
 
 TRANSFORMERS_MODELS_TO_LORA_TARGET_MODULES_MAPPING = {
@@ -176,6 +177,15 @@ def _prepare_dora_config(peft_config, model_config):
         peft_config.merge_weights = True
     return peft_config
 
+def _prepare_frobdora_config(peft_config, model_config):
+    if peft_config.target_modules is None:
+        if model_config["model_type"] not in TRANSFORMERS_MODELS_TO_LORA_TARGET_MODULES_MAPPING:
+            raise ValueError("Please specify `target_modules` in `peft_config`")
+        peft_config.target_modules = TRANSFORMERS_MODELS_TO_LORA_TARGET_MODULES_MAPPING[model_config["model_type"]]
+    if peft_config.inference_mode:
+        peft_config.merge_weights = True
+    return peft_config
+
 
 def _prepare_bottleneck_config(peft_config, model_config):
     if peft_config.target_modules is None:
@@ -213,6 +223,9 @@ def get_peft_model(model, peft_config):
             return PeftModel(model, peft_config)
         elif peft_config.peftype == "DORA":
             peft_config = _prepare_dora_config(peft_config, model_config)
+            return PeftModel(model, peft_config)
+        elif peft_config.peftype == "FROBDORA":
+            peft_config = _prepare_frobdora_config(peft_config, model_config)
             return PeftModel(model, peft_config)
         elif peft_config.peft_type == "BOTTLENECK":
             peft_config = _prepare_bottleneck_config(peft_config, model_config)

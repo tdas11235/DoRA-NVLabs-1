@@ -18,6 +18,7 @@
 # limitations under the License.
 from .dora import DoraConfig, DoraModel
 from .lora import LoraConfig, LoraModel
+from .frobdora import FrobDoraConfig, FrobDoraModel
 from .bottleneck import BottleneckConfig, BottleneckModel
 from .p_tuning import PromptEncoder, PromptEncoderConfig, PromptEncoderReparameterizationType
 from .prefix_tuning import PrefixEncoder, PrefixTuningConfig
