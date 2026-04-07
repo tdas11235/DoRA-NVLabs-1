@@ -383,7 +383,7 @@ class Linear(nn.Linear, LoraLayer):
         if self.Wdecompose == False:
             self.lora_A.train(mode)
             self.lora_B.train(mode)
-        self.m_scalar.train(mode)
+        # self.m_scalar.train(mode)
 
         if not mode and self.merge_weights and not self.merged:
             # Merge the weights and mark it
