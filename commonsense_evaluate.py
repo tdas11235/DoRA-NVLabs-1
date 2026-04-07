@@ -101,6 +101,17 @@ def main(
                     wdecompose_target_module_found = False
             else:
                 wdecompose_target_module_found = False
+            
+            if args.adapter == "FrobDoRA":
+                if model.peft_config.Wdecompose_target_modules != None:
+                    if isinstance(model.peft_config.Wdecompose_target_modules, str):
+                        wdecompose_target_module_found = re.fullmatch(model.peft_config.Wdecompose_target_modules, key)
+                    else:
+                        wdecompose_target_module_found = any(key.endswith(target_key) for target_key in model.peft_config.Wdecompose_target_modules)
+                else: 
+                    wdecompose_target_module_found = False
+            else:
+                wdecompose_target_module_found = False
 
             if target_module_found:
                 print(f"found {key}")
@@ -212,7 +223,7 @@ def parse_args():
     parser.add_argument('--dataset', choices=["boolq", "piqa", "social_i_qa", "hellaswag", "winogrande", "ARC-Challenge", "ARC-Easy", "openbookqa"],
                         required=True)
     parser.add_argument('--model', choices=['LLaMA-7B', "LLaMA-13B",'LLaMA2-7B','LLaMA3-8B', 'llama-68m', 'phi-3-4k-instruct'], required=True)
-    parser.add_argument('--adapter', choices=['None', 'LoRA', 'AdapterP', 'AdapterH', 'Parallel', 'DoRA'],
+    parser.add_argument('--adapter', choices=['None', 'LoRA', 'AdapterP', 'AdapterH', 'Parallel', 'DoRA', 'FrobDoRA'],
                         required=True)
     parser.add_argument('--base_model', required=True)
     parser.add_argument('--lora_weights', required=True)
