@@ -26,6 +26,7 @@ from peft import (  # noqa: E402
     LoraConfig,
     DoraConfig,
     FrobDoraConfig,
+    OLoraConfig,
     BottleneckConfig,
     PrefixTuningConfig,
     get_peft_model,
@@ -257,7 +258,7 @@ def train(
         )
     elif adapter_name == 'olora':
         print("OLoRA init")
-        config = LoraConfig(
+        config = OLoraConfig(
             r=lora_r,
             lora_alpha=lora_alpha,
             target_modules=target_modules,
