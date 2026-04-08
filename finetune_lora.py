@@ -72,7 +72,7 @@ class LoraTrackingCallback(TrainerCallback):
         
         step_data = []
 
-        for name, module in self.dora_layers:
+        for name, module in self.lora_layers:
             M, V = get_MD(module)
             M0 = self.initial_MD[name]["M0"]
             V0 = self.initial_MD[name]["V0"]
