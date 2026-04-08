@@ -58,7 +58,7 @@ def get_peft_model_state_dict(model, state_dict=None):
         else:
             raise NotImplementedError
         
-    if model.peft_config.peft_type == PeftType.OLORA:
+    elif model.peft_config.peft_type == PeftType.OLORA:
         bias = model.peft_config.bias
         if bias == "none":
             to_return = {k: state_dict[k] for k in state_dict if "lora_" in k}
