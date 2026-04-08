@@ -255,6 +255,16 @@ def train(
             frobdora_simple=frobdora_simple,
             Wdecompose_target_modules=Wdecompose_target_modules
         )
+    elif adapter_name == 'olora':
+        print("OLoRA init")
+        config = LoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            target_modules=target_modules,
+            lora_dropout=lora_dropout,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
     elif adapter_name == "bottleneck":
         config = BottleneckConfig(
             bottleneck_size=bottleneck_size,

@@ -57,6 +57,24 @@ def get_peft_model_state_dict(model, state_dict=None):
                         to_return[bias_name] = state_dict[bias_name]
         else:
             raise NotImplementedError
+        
+    if model.peft_config.peft_type == PeftType.OLORA:
+        bias = model.peft_config.bias
+        if bias == "none":
+            to_return = {k: state_dict[k] for k in state_dict if "lora_" in k}
+        elif bias == "all":
+            to_return = {k: state_dict[k] for k in state_dict if "lora_" in k or "bias" in k}
+        elif bias == "lora_only":
+            to_return = {}
+            for k in state_dict:
+                if "lora_" in k:
+                    to_return[k] = state_dict[k]
+                    bias_name = k.split("lora_")[0] + "bias"
+                    if bias_name in state_dict:
+                        to_return[bias_name] = state_dict[bias_name]
+        else:
+            raise NotImplementedError
+
     elif model.peft_config.peft_type == PeftType.DORA:
 
         bias = model.peft_config.bias
@@ -129,7 +147,7 @@ def set_peft_model_state_dict(model, peft_model_state_dict):
     """
 
     model.load_state_dict(peft_model_state_dict, strict=False)
-    if model.peft_config.peft_type != PeftType.LORA and model.peft_config.peft_type != PeftType.BOTTLENECK and model.peft_config.peft_type != PeftType.DORA and model.peft_config.peft_type != PeftType.FROBDORA:
+    if model.peft_config.peft_type != PeftType.LORA and model.peft_config.peft_type != PeftType.BOTTLENECK and model.peft_config.peft_type != PeftType.DORA and model.peft_config.peft_type != PeftType.FROBDORA and model.peft_config.peft_type != PeftType.OLORA:
         model.prompt_encoder.embedding.load_state_dict(
             {"weight": peft_model_state_dict["prompt_embeddings"]}, strict=True
         )

@@ -42,6 +42,8 @@ from .tuners import (
     DoraModel,
     FrobDoraConfig,
     FrobDoraModel,
+    OLoraConfig,
+    OLoraModel,
     BottleneckConfig,
     BottleneckModel,
     PrefixEncoder,

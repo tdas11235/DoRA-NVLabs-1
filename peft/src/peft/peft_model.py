@@ -37,7 +37,7 @@ from transformers import PreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput, TokenClassifierOutput
 from transformers.utils import PushToHubMixin
 
-from .tuners import LoraModel, BottleneckModel, PrefixEncoder, PromptEmbedding, PromptEncoder, DoraModel, FrobDoraModel
+from .tuners import LoraModel, BottleneckModel, PrefixEncoder, PromptEmbedding, PromptEncoder, DoraModel, FrobDoraModel, OLoraModel
 from .utils import (
     TRANSFORMERS_MODELS_TO_PREFIX_TUNING_POSTPROCESS_MAPPING,
     WEIGHTS_NAME,
@@ -93,6 +93,8 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
                 self.base_model = DoraModel(peft_config, model)
             elif self.peft_config.peft_type == PeftType.FROBDORA:
                 self.base_model = FrobDoraModel(peft_config, model)
+            elif self.peft_config.peft_type == PeftType.OLORA:
+                self.base_model = OLoraModel(peft_config, model)
         if getattr(self.peft_config, "modules_to_save", None) is not None:
             self.modules_to_save = self.peft_config.modules_to_save
             _set_trainable(self)
@@ -193,7 +195,7 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
                 )
             model = dispatch_model(model, device_map=device_map)
             hook = AlignDevicesHook(io_same_device=True)
-            if model.peft_config.peft_type == PeftType.LORA or model.peft_config.peft_type == PeftType.BOTTLENECK or model.peft_config.peft_type == PeftType.DORA or model.peft_config.peft_type == PeftType.FROBDORA:
+            if model.peft_config.peft_type == PeftType.LORA or model.peft_config.peft_type == PeftType.BOTTLENECK or model.peft_config.peft_type == PeftType.DORA or model.peft_config.peft_type == PeftType.FROBDORA or model.peft_config.peft_type == PeftType.OLORA:
                 add_hook_to_module(model.base_model.model, hook)
             else:
                 remove_hook_from_submodules(model.prompt_encoder)
