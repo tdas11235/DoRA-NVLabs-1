@@ -37,77 +37,47 @@ from peft import (  # noqa: E402
 )
 from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, AutoModel, BitsAndBytesConfig, TrainerCallback  # noqa: F402
 import json
-import os
+
+def get_MD_frob(module):
+    # Magnitude (scalar)
+    m = module.m_scalar.detach().clone()
+    # Direction carrier
+    if hasattr(module, "lora_A"):
+        V = module.weight + (module.lora_B.weight @ module.lora_A.weight) * module.scaling
+    else:
+        V = module.weight
+    frob = torch.norm(V, p='fro')
+    return m, V, frob
 
 
-class FrobDoraCallback(TrainerCallback):
-    def __init__(self, log_every=10, save_path="frob_dora_logs.jsonl", eps=1e-8):
-        self.log_every = log_every
-        self.save_path = save_path
-        self.eps = eps
-        self.initial_M = {}
-        self.initial_D = {}
+class FrobDoraTrackingCallback(TrainerCallback):
+    def __init__(self, dora_layers, initial_MD, target_steps):
+        self.dora_layers = dora_layers
+        self.initial_MD = initial_MD
+        self.target_steps = set(target_steps)
+        self.logs = {}
 
-        if os.path.exists(self.save_path):
-            os.remove(self.save_path)
-
-    def _get_direction(self, module):
-        if module.Wdecompose:
-            W = module.weight
-            return W / (torch.linalg.norm(W) + self.eps)
-
-        elif module.r > 0:
-            W = module.weight
-            BA = module.lora_B.weight @ module.lora_A.weight
-            new_W = W + BA * module.scaling
-            return new_W / (torch.linalg.norm(new_W) + self.eps)
-
-        return None
-
-    def _flatten_normalize(self, D):
-        d = D.reshape(-1)
-        return d / (torch.norm(d) + self.eps)
-
-    def on_train_begin(self, args, state, control, model=None, **kwargs):
-        for name, module in model.named_modules():
-            if hasattr(module, "m_scalar"):
-                self.initial_M[name] = module.m_scalar.detach().clone()
-
-                D = self._get_direction(module)
-                if D is not None:
-                    self.initial_D[name] = self._flatten_normalize(D.detach())
-
-    def on_step_end(self, args, state, control, model=None, **kwargs):
-        if state.global_step % self.log_every != 0:
+    def on_step_end(self, args, state, control, **kwargs):
+        step = state.global_step
+        if step not in self.target_steps:
             return
-        layer_logs = {}
-        for name, module in model.named_modules():
-            if name in self.initial_M:
-                layer_entry = {}
-
-                # ΔM
-                delta_m = torch.norm(
-                    module.m_scalar - self.initial_M[name]
-                ).item()
-                layer_entry["delta_M"] = float(delta_m)
-
-                # ΔD (cosine drift)
-                if name in self.initial_D:
-                    current_D = self._get_direction(module)
-                    if current_D is not None:
-                        d_flat = self._flatten_normalize(current_D.detach())
-                        cos = torch.dot(self.initial_D[name], d_flat)
-                        delta_d = (1.0 - cos).item()
-                        layer_entry["delta_D_cos"] = float(delta_d)
-
-                layer_logs[name] = layer_entry
-        log_entry = {
-            "step": int(state.global_step),
-            "layers": layer_logs,
-        }
-        with open(self.save_path, "a") as f:
-            f.write(json.dumps(log_entry) + "\n")
-        print(f"Logged step {state.global_step}")
+        step_data = []
+        for name, module in self.dora_layers:
+            m, V, frob = get_MD_frob(module)
+            m0 = self.initial_MD[name]["m0"]
+            V0 = self.initial_MD[name]["V0"]
+            frob0 = self.initial_MD[name]["frob0"]
+            # ΔM
+            delta_m = (m - m0).abs().item()
+            # ΔD via cosine similarity
+            cos_sim = torch.sum(V * V0) / (
+                torch.norm(V) * torch.norm(V0) + 1e-8
+            )
+            delta_D = 1 - cos_sim.item()
+            # frob changes
+            delta_frob = abs(frob - frob0).item()
+            step_data.append((delta_m, delta_D, delta_frob))
+        self.logs[step] = step_data
 
 def train(
         # model/data params
@@ -356,6 +326,14 @@ def train(
             task_type="CAUSAL_LM",
         )
     model = get_peft_model(model, config)
+    # ==== DoRA layer collection ====
+    frob_dora_layers = []
+    for name, module in model.named_modules():
+        if hasattr(module, "m_scalar") and "qkv_proj" in name:
+            frob_dora_layers.append((name, module))
+    print(f"Found {len(frob_dora_layers)} FrobDoRA layers")
+    frob_dora_layers = frob_dora_layers[::2][:6]
+
     if adapter_name == "prefix-tuning":
         model.to('cuda')
 
@@ -385,6 +363,16 @@ def train(
             print(f"Checkpoint {checkpoint_name} not found")
 
     model.print_trainable_parameters()  # Be more transparent about the % of trainable params.
+    # ==== Store initial M and D ====
+    initial_MD = {}
+    for name, module in frob_dora_layers:
+        m, V, frob = get_MD_frob(module)   # use V instead of D
+        initial_MD[name] = {
+            "m0": m,
+            "V0": V,
+            "frob0": frob
+        }
+
 
     if val_set_size > 0:
         train_val = data["train"].train_test_split(
@@ -404,13 +392,25 @@ def train(
         # keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
         model.model_parallel = True
-    
-    callbacks = [
-        FrobDoraCallback(
-            log_every=10,
-            save_path=os.path.join(output_dir, "frob_dora_logs.jsonl")
-        )
+
+    train_dataset_size = len(train_data)
+    steps_per_epoch = train_dataset_size // (micro_batch_size * gradient_accumulation_steps)
+    max_steps = steps_per_epoch * num_epochs
+
+    TARGET_STEPS = [
+        int(0.05 * max_steps),
+        int(0.1 * max_steps),
+        int(0.2 * max_steps),
+        int(0.3 * max_steps),
+        int(0.4 * max_steps),
+        int(0.5 * max_steps),
+        int(0.6 * max_steps),
+        int(0.7 * max_steps),
+        int(0.8 * max_steps),
+        int(0.9 * max_steps),
     ]
+    
+    tracking_callback = FrobDoraTrackingCallback(frob_dora_layers, initial_MD, TARGET_STEPS)
     trainer = transformers.Trainer(
         model=model,
         train_dataset=train_data,
@@ -440,7 +440,7 @@ def train(
         data_collator=transformers.DataCollatorForSeq2Seq(
             tokenizer, pad_to_multiple_of=8, return_tensors="pt", padding=True
         ),
-        callbacks=callbacks
+        callbacks=[tracking_callback]
     )
     model.config.use_cache = False
 
@@ -462,6 +462,8 @@ def train(
         "\n If there's a warning about missing keys above, please disregard :)"
     )
 
+    with open(os.path.join("/kaggle/working", "dora_logs.json"), "w") as f:
+        json.dump(tracking_callback.logs, f, indent=2)
     
 
 
