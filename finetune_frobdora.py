@@ -64,9 +64,9 @@ class FrobDoraTrackingCallback(TrainerCallback):
         step_data = []
         for name, module in self.dora_layers:
             m, V, frob = get_MD_frob(module)
-            m0 = self.initial_MD[name]["m0"]
-            V0 = self.initial_MD[name]["V0"]
-            frob0 = self.initial_MD[name]["frob0"]
+            m0 = self.initial_MD[name]["m0"].detach().cpu()
+            V0 = self.initial_MD[name]["V0"].detach().cpu()
+            frob0 = self.initial_MD[name]["frob0"].detach().cpu()
             # ΔM
             delta_m = (m - m0).abs().item()
             # ΔD via cosine similarity
@@ -368,9 +368,9 @@ def train(
     for name, module in frob_dora_layers:
         m, V, frob = get_MD_frob(module)   # use V instead of D
         initial_MD[name] = {
-            "m0": m,
-            "V0": V,
-            "frob0": frob
+            "m0": m.detach().cpu(),
+            "V0": V.detach().cpu(),
+            "frob0": frob.detach().cpu()
         }
 
 
