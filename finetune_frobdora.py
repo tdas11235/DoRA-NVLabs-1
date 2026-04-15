@@ -67,12 +67,14 @@ class FrobDoraTrackingCallback(TrainerCallback):
             m0 = self.initial_MD[name]["m0"]
             V0 = self.initial_MD[name]["V0"]
             frob0 = self.initial_MD[name]["frob0"]
+            V_f64 = V.to(torch.float64)
+            V0_f64 = V0.to(torch.float64)
+            V_unit = V_f64 / torch.norm(V_f64)
+            V0_unit = V0_f64 / torch.norm(V0_f64)
             # ΔM
             delta_m = (m - m0).abs().item()
             # ΔD via cosine similarity
-            cos_sim = torch.sum(V * V0) / (
-                torch.norm(V) * torch.norm(V0) + 1e-8
-            )
+            cos_sim = torch.dot(V_unit.view(-1), V0_unit.view(-1))
             delta_D = 1 - cos_sim.item()
             # frob changes
             delta_frob = abs(frob - frob0).item()
